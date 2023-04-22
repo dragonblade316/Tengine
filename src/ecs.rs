@@ -14,6 +14,7 @@ impl Tecs {
 
         Tecs::set_instance(ins);
     }
+    
     pub fn resister_entity() {
 
     }
@@ -21,10 +22,11 @@ impl Tecs {
 
     }
 
-    //use these only if you have to. hopefully the builtin components and entitys will be enough
+    //use this only if you have to. hopefully the builtin components and entitys will be enough
     pub fn get_world(&self) -> &ecs::world::World {
         &self.world
     }
+    //use this only if you have to. hopefully the builtin components and entitys will be enough
     pub fn get_mut_world(&mut self) -> &mut ecs::world::World {
         &mut self.world
     }
