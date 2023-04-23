@@ -132,19 +132,15 @@ impl Material {
     }
 }
 
-struct Mesh {
-    vertices: Vec<Vertex>,
-    material_index: u32
+pub struct Mesh {
+    pub vertices: Vec<Vertex>,
+    pub material_index: u32
 }
 
 #[derive(Component)]
-struct Model {
-    meshes: Vec<Mesh>,
-    materials: Vec<Material>
+pub struct Model {
+    pub meshes: Vec<Mesh>,
+    pub materials: Vec<Material>
 }
 
 
-
-fn render(query: Query<(&Model, &Transform)>) {
-    query.for_each(f)
-}

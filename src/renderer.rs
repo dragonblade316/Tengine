@@ -1,3 +1,4 @@
+use bevy_ecs::system::Query;
 use winit::{window::Window, event_loop::EventLoop};
 
 struct Renderer {
@@ -75,7 +76,8 @@ impl Renderer {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(),
+            //!this will need to be changed to std::path
+            source: wgpu::ShaderSource::Wgsl(include_str!("..\\res\\shaders\\shader.wgsl")),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -141,9 +143,81 @@ impl Renderer {
         }
     }
 
-    fn init(event_loop: &EventLoop<()>) {
-        let instance = Renderer::new(window);
+    fn render_models_with_transform(&self, query: Query<(&Model, &Transform)>) {
+
+        let output = self.surface.get_current_texture().unwrap();
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.1,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
+                    }),
+                    store: true,
+                },
+            })],
+
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_texture.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+
+        query.for_each(|things| {
+                let (model, position) = things;
+                render_pass.render_model( &position, &model);
+            }
+        );
+    }
+
+    async fn init(event_loop: &EventLoop<()>) {
+        let ecs = ecs::instance();
+
+        let instance = Renderer::new(event_loop).await;
         Renderer::set_instance(instance);
+    }
+
+
+}
+
+use crate::components::misc::Transform;
+use crate::components::model::{Model, Mesh, Material, self};
+use crate::ecs;
+
+trait RenderModel<'a> {
+    fn render_model(&self, position: &Transform, model: &Model);
+    fn render_mesh(&mut self, position: &Transform, mesh: &Mesh, mat: &Material);
+}
+
+impl<'a, 'b> RenderModel<'a> for wgpu::RenderPass<'b> {
+    
+    //TODO: I will need to rewrite this to support animations later
+    fn render_model(&self, position: &Transform, model: &Model) {
+        for i in model.meshes {
+            self.render_mesh(position, &i, &model.materials[i.material_index as usize])
+        }
+    }
+    fn render_mesh(&mut self, position: &Transform, mesh: &Mesh, mat: &Material) {
+
     }
 }
 
