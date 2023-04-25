@@ -11,6 +11,7 @@ prebuilt components and bundles.
 easy scripting
 easy model loading
 
-
-Nothing is finished yet.
+missing features:
+Curently everything
+instancing.
 

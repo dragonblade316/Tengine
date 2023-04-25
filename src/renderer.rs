@@ -1,14 +1,20 @@
+use std::collections::hash_map;
+use std::ops::RemAssign;
+use hash_map::HashMap;
+
 use bevy_ecs::system::Query;
+use wgpu::{RenderPass, RenderPipeline};
 use winit::{window::Window, event_loop::EventLoop};
 
-struct Renderer {
+
+pub struct Renderer {
     window: Window,
     pub size: winit::dpi::PhysicalSize<u32>,
     pub surface: wgpu::Surface,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
-    render_pipeline: wgpu::RenderPipeline,
+    render_pipelines: hash_map::HashMap<&'static str, wgpu::RenderPipeline>,
     depth_texture: crate::texture::Texture,
 }
 
@@ -74,10 +80,15 @@ impl Renderer {
 
         let depth_texture = crate::texture::Texture::create_depth_texture(&device, &config, "depth texture");
 
+
+
+        let mut render_pipelines = hash_map::HashMap::new();
+
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            //!this will need to be changed to std::path
-            source: wgpu::ShaderSource::Wgsl(include_str!("..\\res\\shaders\\shader.wgsl")),
+            //TODO: this will need to be changed to std::path
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("..\\res\\shaders\\shader.wgsl"))),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -130,6 +141,11 @@ impl Renderer {
 
         });
 
+        render_pipelines.insert("standard", render_pipeline);
+
+
+
+
 
         Self {
             window,
@@ -138,18 +154,72 @@ impl Renderer {
             device,
             queue,
             config,
-            render_pipeline,
+            render_pipelines,
             depth_texture
         }
     }
 
-    fn render_models_with_transform(&self, query: Query<(&Model, &Transform)>) {
+    // fn render_models_with_transform(&self, query: Query<(&Model, &Transform)>) {
 
+        
+
+    //     let output = self.surface.get_current_texture().unwrap();
+    //     let view = output
+    //         .texture
+    //         .create_view(&wgpu::TextureViewDescriptor::default());
+
+    //     let mut encoder = self
+    //         .device
+    //         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+    //             label: Some("Render Encoder"),
+    //         });
+
+    //     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+    //         label: Some("Render Pass"),
+    //         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+    //             view: &view,
+    //             resolve_target: None,
+    //             ops: wgpu::Operations {
+    //                 load: wgpu::LoadOp::Clear(wgpu::Color {
+    //                     r: 0.1,
+    //                     g: 0.2,
+    //                     b: 0.3,
+    //                     a: 1.0,
+    //                 }),
+    //                 store: true,
+    //             },
+    //         })],
+
+    //         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+    //             view: &self.depth_texture.view,
+    //             depth_ops: Some(wgpu::Operations {
+    //                 load: wgpu::LoadOp::Clear(1.0),
+    //                 store: true,
+    //             }),
+    //             stencil_ops: None,
+    //         }),
+    //     });
+
+    //     query.for_each(|things| {
+    //             let (model, position) = things;
+    //             render_pass.render_model( &position, &model);
+    //         }
+    //     );
+    // }
+
+
+    async fn init(event_loop: &EventLoop<()>) {
+        let instance = Renderer::new(event_loop).await;
+        Renderer::set_instance(instance);
+    }
+
+
+    pub fn draw<F>(&self, pipeline_name: &'static str, render_sequence: F ) -> Result<(), &'static str> where F: FnOnce(&mut RenderPass) {
         let output = self.surface.get_current_texture().unwrap();
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
+            let view = output
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+    
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -182,41 +252,62 @@ impl Renderer {
             }),
         });
 
-        query.for_each(|things| {
-                let (model, position) = things;
-                render_pass.render_model( &position, &model);
+
+        let pipeline: &RenderPipeline;
+        match self.render_pipelines.get(pipeline_name) {
+            Some(temp_pipeline) => {
+                pipeline = temp_pipeline;
             }
-        );
+            // ? why must I use return?
+            None => {
+                return Err("render pipeline does not exist");
+            },
+        }
+        
+        render_pass.set_pipeline(pipeline);
+
+
+        //this is a closure that contains the code to call render stuff
+        render_sequence(&mut render_pass);
+
+        drop(render_pass);
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        output.present();
+
+        Ok(())
     }
-
-    async fn init(event_loop: &EventLoop<()>) {
-        let ecs = ecs::instance();
-
-        let instance = Renderer::new(event_loop).await;
-        Renderer::set_instance(instance);
-    }
-
-
 }
+
+
 
 use crate::components::misc::Transform;
 use crate::components::model::{Model, Mesh, Material, self};
 use crate::ecs;
 
-trait RenderModel<'a> {
-    fn render_model(&self, position: &Transform, model: &Model);
+pub trait RenderModel<'a> {
+    fn render_model(&mut self, position: &Transform, model: &Model);
     fn render_mesh(&mut self, position: &Transform, mesh: &Mesh, mat: &Material);
 }
 
 impl<'a, 'b> RenderModel<'a> for wgpu::RenderPass<'b> {
     
     //TODO: I will need to rewrite this to support animations later
-    fn render_model(&self, position: &Transform, model: &Model) {
-        for i in model.meshes {
+    fn render_model(&mut self, position: &Transform, model: &Model) {
+        for i in &model.meshes {
             self.render_mesh(position, &i, &model.materials[i.material_index as usize])
         }
     }
     fn render_mesh(&mut self, position: &Transform, mesh: &Mesh, mat: &Material) {
+        //bind group zero will always be reserved for mats. bind group 1 will be for the position. bind group 2 will be for the camera which is set in the camera file
+        self.set_bind_group(0, &mat.bind_group, &[]);
+        self.set_bind_group(1, transform_bind_group, &[]);
+
+        
+        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        
+        self.draw_indexed(0..mesh.num_elements, 0, instances);
 
     }
 }

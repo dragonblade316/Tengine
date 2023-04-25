@@ -44,7 +44,7 @@ pub struct Material {
     roughness: Texture,
     Metallic: Texture,
     Normal: Texture,
-    bind_group: wgpu::BindGroup
+    pub bind_group: wgpu::BindGroup
 }
 
 impl Material {
@@ -133,7 +133,10 @@ impl Material {
 }
 
 pub struct Mesh {
-    pub vertices: Vec<Vertex>,
+    pub name: String,
+    pub vertex_buffer: wgpu::Buffer,
+    pub index_buffer: wgpu::Buffer,
+    pub num_elements: u32,
     pub material_index: u32
 }
 
@@ -141,6 +144,21 @@ pub struct Mesh {
 pub struct Model {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>
+}
+
+use crate::renderer::*;
+
+fn render_models_with_transform(query: Query<(&Model, &Transform)>) {
+    let renderer = Renderer::get_instance();
+    renderer.draw("standard", |pass| {
+        query.for_each(|things| {
+
+            let (model, transform) = things;          
+            
+            pass.render_model(transform, model);
+        });
+        
+    });
 }
 
 

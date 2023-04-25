@@ -1,6 +1,6 @@
 extern crate bevy_ecs as ecs;
 
-struct Tecs {
+pub struct Tecs {
     world: ecs::world::World
 }
 

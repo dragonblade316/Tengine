@@ -9,7 +9,7 @@ macro_rules! unsafe_singleton {
                 }
             }
 
-            pub fn instance() -> &'static mut Self {
+            pub fn get_instance() -> &'static mut Self {
                 unsafe {
                     assert!(INSTANCE != 0 as *mut Self, "tengine is not initialized");
                     &mut *INSTANCE

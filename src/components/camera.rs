@@ -32,11 +32,15 @@ struct DisplaySize {
 
 // }
 
-fn update_aspect(displaysize: Option<Res<DisplaySize>>,query: Query<&mut Camera> ) {
+fn update_aspect(displaysize: Option<Res<DisplaySize>>, mut query: Query<&mut Camera> ) {
     if let Some(displaysize) = displaysize {
-        query.for_each(|cam| {
-            cam.aspect = displaysize.x as f32 / displaysize.y as f32;
-        })
+        
+        let mut cam = query.get_single_mut().expect("morn then one camera");
+        cam.aspect = displaysize.x as f32 / displaysize.y as f32;
+        
+        // query.for_each_mut(|cam| {
+        //     cam.aspect = displaysize.x as f32 / displaysize.y as f32;
+        // })
     }
 }
 
