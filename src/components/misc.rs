@@ -38,9 +38,10 @@ impl Transform {
     }
     
     pub fn update_transform(&self, matrix: Matrix4<f32>) {
-
+        let queue = crate::renderer::Renderer::get_instance().queue;
+        queue.write_buffer(&self.transform_buffer, 0, bytemuck::cast_slice(&[matrix]))
     }
-    
+
     pub fn get_bind_group_layout() -> wgpu::BindGroupLayout {
         let device = crate::renderer::Renderer::get_instance().device;
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
