@@ -3,7 +3,7 @@ use std::ops::RemAssign;
 use hash_map::HashMap;
 
 use bevy_ecs::system::Query;
-use wgpu::{RenderPass, RenderPipeline};
+use wgpu::{RenderPass, RenderPipeline, SurfaceTexture};
 use winit::{window::Window, event_loop::EventLoop};
 
 
@@ -213,8 +213,11 @@ impl Renderer {
         Renderer::set_instance(instance);
     }
 
+    
 
-    pub fn draw<F>(&self, pipeline_name: &'static str, render_sequence: F ) -> Result<(), &'static str> where F: FnOnce(&mut RenderPass) {
+    pub fn prep_for_render() 
+
+    pub fn draw(&self, pipeline_name: &'static str) -> Result<(), &'static str> {
         let output = self.surface.get_current_texture().unwrap();
             let view = output
                 .texture
@@ -270,7 +273,12 @@ impl Renderer {
         //this is a closure that contains the code to call render stuff
         render_sequence(&mut render_pass);
 
-        drop(render_pass);
+        TRender {
+            output,
+            encoder,
+            Some(render_pass)
+        };
+
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -279,35 +287,56 @@ impl Renderer {
     }
 }
 
+// struct TRenderPass<'a> {
+//     output: SurfaceTexture,
+//     encoder: wgpu::CommandEncoder,
+//     pub render_pass: Option<wgpu::RenderPass<'a>>,
+// }
+
+// impl<'a> TRenderPass<'a> {
+//     pub fn display(&mut self) {
+//         let queue = Renderer::get_instance().queue;
+
+//         //renderpass is dropped to regain use of encoder
+//         self.render_pass = None;
+
+//         queue.submit(std::iter::once(self.encoder.finish()));
+//         self.output.present();
+
+//         //this will ensure the user does not try to use this after the renderpass is deleted
+//         drop(self)
+//     }
+//     //TODO: I will ignore this for now but I may want to make setters for the bind groups and draw calls
+// }
+
 
 
 use crate::components::misc::Transform;
 use crate::components::model::{Model, Mesh, Material, self};
 use crate::ecs;
 
-pub trait RenderModel<'a> {
-    fn render_model(&mut self, position: &Transform, model: &Model);
-    fn render_mesh(&mut self, position: &Transform, mesh: &Mesh, mat: &Material);
+pub trait RenderMesh<'a> {
+    fn render_model(&mut self, position: &'a Transform, model: &'a Model);
+    fn render_mesh(&mut self, position: &'a Transform, mesh: &'a Mesh, mat: &'a Material);
 }
 
-impl<'a, 'b> RenderModel<'a> for wgpu::RenderPass<'b> {
-    
+impl<'a, 'b> RenderMesh<'a> for wgpu::RenderPass<'b> where 'a: 'b, { 
     //TODO: I will need to rewrite this to support animations later
-    fn render_model(&mut self, position: &Transform, model: &Model) {
+    fn render_model(&mut self, position: &'a Transform, model: &'a Model) {
         for i in &model.meshes {
             self.render_mesh(position, &i, &model.materials[i.material_index as usize])
         }
     }
-    fn render_mesh(&mut self, position: &Transform, mesh: &Mesh, mat: &Material) {
+    fn render_mesh(&mut self, position: &'a Transform, mesh: &'a Mesh, mat: &'a Material) {
         //bind group zero will always be reserved for mats. bind group 1 will be for the position. bind group 2 will be for the camera which is set in the camera file
         self.set_bind_group(0, &mat.bind_group, &[]);
-        self.set_bind_group(1, transform_bind_group, &[]);
+        self.set_bind_group(1, &position.bind_group, &[]);
 
         
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         
-        self.draw_indexed(0..mesh.num_elements, 0, instances);
+        self.draw_indexed(0..mesh.num_elements, 0, 0..1)
 
     }
 }

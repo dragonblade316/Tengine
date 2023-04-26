@@ -6,15 +6,14 @@ use super::misc::Transform;
 #[derive(Component)]
 struct Camera {
     relative_position: Transform,
-    aspect: f32,
-    fovy: f32,
-    znear: f32,
-    zfar: f32,
+    perspective: nalgebra::Perspective3<f32>,
 }
 
 impl Default for Camera {
     fn default() -> Self {
-        Self { relative_position: Transform(nalgebra::Matrix4::zeros()), aspect: 0 as f32, fovy: 45.0, znear: 0.1, zfar: 500.0 }
+        Self { 
+            relative_position: Transform::new(nalgebra::Matrix4::zeros()), 
+            perspective: nalgebra::Perspective3::new(0.0, 45.0, 0.1, 500.0)}
     }
 }
 
@@ -36,7 +35,8 @@ fn update_aspect(displaysize: Option<Res<DisplaySize>>, mut query: Query<&mut Ca
     if let Some(displaysize) = displaysize {
         
         let mut cam = query.get_single_mut().expect("morn then one camera");
-        cam.aspect = displaysize.x as f32 / displaysize.y as f32;
+        
+        cam.perspective.set_aspect(displaysize.x as f32 / displaysize.y as f32);
         
         // query.for_each_mut(|cam| {
         //     cam.aspect = displaysize.x as f32 / displaysize.y as f32;
@@ -45,5 +45,16 @@ fn update_aspect(displaysize: Option<Res<DisplaySize>>, mut query: Query<&mut Ca
 }
 
 fn update_cam(query: Query<(&Camera, &Transform), Changed<Transform>>) {
+    //let proj = nalgebra::perspective(nalgebra::Deg(self.fovy), self.aspect, self.znear, self.zfar);
+    //nalgebra::Perspective3::
+ 
 
+
+    // #[rustfmt::skip]
+    // pub const OPENGL_TO_WGPU_MATRIX: nalgebra::Matrix4<f32> = nalgebra::Matrix4::new(
+    //     1.0, 0.0, 0.0, 0.0,
+    //     0.0, 1.0, 0.0, 0.0,
+    //     0.0, 0.0, 0.5, 0.0,
+    //     0.0, 0.0, 0.5, 1.0,
+    // );
 }

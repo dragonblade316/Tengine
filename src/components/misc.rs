@@ -10,7 +10,7 @@ pub struct Transform {
 }
 impl Transform {
     pub fn new(matrix: Matrix4<f32>) -> Self {
-        let device = crate::renderer::Renderer::get_instance().device;
+        let device = &crate::renderer::Renderer::get_instance().device;
         let transform_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: None,
@@ -38,12 +38,14 @@ impl Transform {
     }
     
     pub fn update_transform(&self, matrix: Matrix4<f32>) {
-        let queue = crate::renderer::Renderer::get_instance().queue;
+        let queue = &crate::renderer::Renderer::get_instance().queue;
         queue.write_buffer(&self.transform_buffer, 0, bytemuck::cast_slice(&[matrix]))
     }
 
+    
+
     pub fn get_bind_group_layout() -> wgpu::BindGroupLayout {
-        let device = crate::renderer::Renderer::get_instance().device;
+        let device = &crate::renderer::Renderer::get_instance().device;
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
