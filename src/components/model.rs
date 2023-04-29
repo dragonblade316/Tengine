@@ -1,4 +1,4 @@
-use bevy_ecs::{prelude::Component, system::Query, query::WorldQuery};
+use bevy_ecs::{prelude::Component, query::WorldQuery, system::Query};
 use wgpu::Device;
 
 use crate::texture::Texture;
@@ -8,7 +8,7 @@ use super::misc::Transform;
 pub struct Vertex {
     position: [f32; 3],
     tex_cords: [f32; 2],
-    normal: [f32; 2]
+    normal: [f32; 2],
 }
 
 impl Vertex {
@@ -38,13 +38,12 @@ impl Vertex {
     }
 }
 
-
 pub struct Material {
     diffuse: Texture,
     roughness: Texture,
     Metallic: Texture,
     Normal: Texture,
-    pub bind_group: wgpu::BindGroup
+    pub bind_group: wgpu::BindGroup,
 }
 
 impl Material {
@@ -69,7 +68,6 @@ impl Material {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
-
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -88,7 +86,6 @@ impl Material {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
-
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -107,7 +104,6 @@ impl Material {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
-
                 wgpu::BindGroupLayoutEntry {
                     binding: 6,
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -137,28 +133,11 @@ pub struct Mesh {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub num_elements: u32,
-    pub material_index: u32
+    pub material_index: u32,
 }
 
 #[derive(Component)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
-    pub materials: Vec<Material>
+    pub materials: Vec<Material>,
 }
-
-use crate::renderer::*;
-
-fn render_models_with_transform(query: Query<(&Model, &Transform)>) {
-    let renderer = Renderer::get_instance();
-    renderer.draw("standard", |pass| {
-        query.for_each(|things| {
-
-            let (model, transform) = things;          
-            
-            pass.render_model(transform, model);
-        });
-        
-    });
-}
-
-

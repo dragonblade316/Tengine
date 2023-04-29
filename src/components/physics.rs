@@ -1,3 +1,1 @@
-struct Rigidbody {
-    
-}
+struct Rigidbody {}

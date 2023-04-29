@@ -4,19 +4,18 @@ use wgpu::Texture;
 
 #[macro_use]
 mod utils;
+mod bundles;
 mod components;
+mod ecs;
 mod renderer;
 mod texture;
-mod ecs;
-mod bundles;
 
 extern crate nalgebra as math;
 
-struct thing(u32);
+//TODO: add comments, add user methods, add tests,
 
-pub fn init(width: u32, height: u32) {
-    
+pub fn init(name: &'static str, width: u32, height: u32) {
+    ecs::Tecs::init();
+    //the ecs must be running before the renderer as some of the rendering code depends on it
 }
-
 pub fn run() {}
-

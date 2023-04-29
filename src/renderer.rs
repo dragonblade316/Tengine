@@ -1,11 +1,15 @@
+use anyhow::Ok;
+use hash_map::HashMap;
 use std::collections::hash_map;
 use std::ops::RemAssign;
-use hash_map::HashMap;
 
 use bevy_ecs::system::Query;
 use wgpu::{RenderPass, RenderPipeline, SurfaceTexture};
-use winit::{window::Window, event_loop::EventLoop};
+use winit::{event_loop::EventLoop, window::Window};
 
+use crate::components::camera::{self, Camera};
+use crate::components::light::Light;
+use crate::components::misc::Transform;
 
 pub struct Renderer {
     window: Window,
@@ -22,7 +26,6 @@ unsafe_singleton!(Renderer);
 
 impl Renderer {
     async fn new(event_loop: &EventLoop<()>) -> Self {
-
         let window = Window::new(event_loop).expect("Unable to open window");
 
         let size = window.inner_size();
@@ -78,17 +81,17 @@ impl Renderer {
         };
         surface.configure(&device, &config);
 
-        let depth_texture = crate::texture::Texture::create_depth_texture(&device, &config, "depth texture");
-
-
+        let depth_texture =
+            crate::texture::Texture::create_depth_texture(&device, &config, "depth texture");
 
         let mut render_pipelines = hash_map::HashMap::new();
-
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             //TODO: this will need to be changed to std::path
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("..\\res\\shaders\\shader.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                "..\\res\\shaders\\shader.wgsl"
+            ))),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -100,7 +103,11 @@ impl Renderer {
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState { module: &shader, entry_point: "vs_main", buffers: &[crate::components::model::Vertex::desc()] },
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[crate::components::model::Vertex::desc()],
+            },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
@@ -138,14 +145,9 @@ impl Renderer {
                 alpha_to_coverage_enabled: false, // 4.
             },
             multiview: None, // 5.
-
         });
 
         render_pipelines.insert("standard", render_pipeline);
-
-
-
-
 
         Self {
             window,
@@ -155,79 +157,34 @@ impl Renderer {
             queue,
             config,
             render_pipelines,
-            depth_texture
+            depth_texture,
         }
     }
-
-    // fn render_models_with_transform(&self, query: Query<(&Model, &Transform)>) {
-
-        
-
-    //     let output = self.surface.get_current_texture().unwrap();
-    //     let view = output
-    //         .texture
-    //         .create_view(&wgpu::TextureViewDescriptor::default());
-
-    //     let mut encoder = self
-    //         .device
-    //         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-    //             label: Some("Render Encoder"),
-    //         });
-
-    //     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-    //         label: Some("Render Pass"),
-    //         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-    //             view: &view,
-    //             resolve_target: None,
-    //             ops: wgpu::Operations {
-    //                 load: wgpu::LoadOp::Clear(wgpu::Color {
-    //                     r: 0.1,
-    //                     g: 0.2,
-    //                     b: 0.3,
-    //                     a: 1.0,
-    //                 }),
-    //                 store: true,
-    //             },
-    //         })],
-
-    //         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-    //             view: &self.depth_texture.view,
-    //             depth_ops: Some(wgpu::Operations {
-    //                 load: wgpu::LoadOp::Clear(1.0),
-    //                 store: true,
-    //             }),
-    //             stencil_ops: None,
-    //         }),
-    //     });
-
-    //     query.for_each(|things| {
-    //             let (model, position) = things;
-    //             render_pass.render_model( &position, &model);
-    //         }
-    //     );
-    // }
-
 
     async fn init(event_loop: &EventLoop<()>) {
         let instance = Renderer::new(event_loop).await;
         Renderer::set_instance(instance);
     }
 
-    
-
-    pub fn prep_for_render() 
-
-    pub fn draw(&self, pipeline_name: &'static str) -> Result<(), &'static str> {
+    //TODO: this is bad. rewrite it
+    pub fn render(
+        &mut self,
+        models: Query<(&Model, &Transform)>,
+        lights: Query<&Light, &Transform>,
+        cam: Query<&Camera>,
+    ) {
         let output = self.surface.get_current_texture().unwrap();
-            let view = output
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-    
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+
+        let render_pipeline = self.render_pipelines.get("standard").unwrap();
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
@@ -255,64 +212,42 @@ impl Renderer {
             }),
         });
 
+        render_pass.set_pipeline(&render_pipeline);
+        render_pass.set_bind_group(3, cam.single().get_bind_group(), &[]);
 
-        let pipeline: &RenderPipeline;
-        match self.render_pipelines.get(pipeline_name) {
-            Some(temp_pipeline) => {
-                pipeline = temp_pipeline;
-            }
-            // ? why must I use return?
-            None => {
-                return Err("render pipeline does not exist");
-            },
-        }
-        
-        render_pass.set_pipeline(pipeline);
+        models.for_each(|m| {
+            let (model, transform) = m;
+            render_pass.render_model(transform, model);
+        });
 
-
-        //this is a closure that contains the code to call render stuff
-        render_sequence(&mut render_pass);
-
-        TRender {
-            output,
-            encoder,
-            Some(render_pass)
-        };
-
+        drop(render_pass);
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
-
-        Ok(())
     }
 }
 
-// struct TRenderPass<'a> {
-//     output: SurfaceTexture,
-//     encoder: wgpu::CommandEncoder,
-//     pub render_pass: Option<wgpu::RenderPass<'a>>,
-// }
+struct TRenderPass<'a> {
+    output: SurfaceTexture,
+    encoder: wgpu::CommandEncoder,
+    pub render_pass: Option<wgpu::RenderPass<'a>>,
+}
 
-// impl<'a> TRenderPass<'a> {
-//     pub fn display(&mut self) {
-//         let queue = Renderer::get_instance().queue;
+impl<'a> TRenderPass<'a> {
+    pub fn display(mut self) {
+        let queue = &Renderer::get_instance().queue;
 
-//         //renderpass is dropped to regain use of encoder
-//         self.render_pass = None;
+        //renderpass is dropped to regain use of encoder
+        self.render_pass = None;
 
-//         queue.submit(std::iter::once(self.encoder.finish()));
-//         self.output.present();
+        queue.submit(std::iter::once(self.encoder.finish()));
+        self.output.present();
 
-//         //this will ensure the user does not try to use this after the renderpass is deleted
-//         drop(self)
-//     }
-//     //TODO: I will ignore this for now but I may want to make setters for the bind groups and draw calls
-// }
+        //this will ensure the user does not try to use this after the renderpass is deleted
+    }
+}
 
-
-
-use crate::components::misc::Transform;
-use crate::components::model::{Model, Mesh, Material, self};
+use crate::components::model::{self, Material, Mesh, Model};
 use crate::ecs;
 
 pub trait RenderMesh<'a> {
@@ -320,7 +255,10 @@ pub trait RenderMesh<'a> {
     fn render_mesh(&mut self, position: &'a Transform, mesh: &'a Mesh, mat: &'a Material);
 }
 
-impl<'a, 'b> RenderMesh<'a> for wgpu::RenderPass<'b> where 'a: 'b, { 
+impl<'a, 'b> RenderMesh<'a> for wgpu::RenderPass<'b>
+where
+    'a: 'b,
+{
     //TODO: I will need to rewrite this to support animations later
     fn render_model(&mut self, position: &'a Transform, model: &'a Model) {
         for i in &model.meshes {
@@ -332,13 +270,9 @@ impl<'a, 'b> RenderMesh<'a> for wgpu::RenderPass<'b> where 'a: 'b, {
         self.set_bind_group(0, &mat.bind_group, &[]);
         self.set_bind_group(1, &position.bind_group, &[]);
 
-        
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        
-        self.draw_indexed(0..mesh.num_elements, 0, 0..1)
 
+        self.draw_indexed(0..mesh.num_elements, 0, 0..1)
     }
 }
-
-

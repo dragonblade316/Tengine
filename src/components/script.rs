@@ -1,3 +1,1 @@
-struct RustScript {
-    
-}
+struct RustScript {}
